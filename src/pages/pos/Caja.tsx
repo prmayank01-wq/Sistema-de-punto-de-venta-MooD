@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, Minus, Trash2, Clock, DollarSign, QrCode, CreditCard, Image as ImageIcon } from 'lucide-react';
+import { Search, Minus, Trash2, Clock, DollarSign, QrCode, CreditCard, Image as ImageIcon, AlertTriangle } from 'lucide-react';
 
 export default function Caja() {
   const [productos, setProductos] = useState<any[]>([]);
@@ -22,6 +22,7 @@ export default function Caja() {
   const [showDeletePrompt, setShowDeletePrompt] = useState(false);
   const [deleteJustification, setDeleteJustification] = useState('');
   const [modifiedSales, setModifiedSales] = useState<number[]>([]);
+  const [inventoryUsed, setInventoryUsed] = useState<any[]>([]);
 
   useEffect(() => {
     fetchProducts();
@@ -31,6 +32,18 @@ export default function Caja() {
       setPendingTickets(JSON.parse(savedPending));
     }
   }, []);
+
+  const fetchInventoryUsed = async () => {
+    try {
+      const userStr = localStorage.getItem('user');
+      const user = userStr ? JSON.parse(userStr) : { id: 1 };
+      const res = await fetch(`/api/sales/current-shift/inventory?user_id=${user.id}`);
+      const data = await res.json();
+      setInventoryUsed(data);
+    } catch (err) {
+      console.error('Error fetching inventory used:', err);
+    }
+  };
 
   const savePendingTicket = (justification: string) => {
     if (ticket.length === 0) return;
@@ -57,17 +70,47 @@ export default function Caja() {
     setShowPending(false);
   };
 
-  const deletePendingTicket = (id: number) => {
-    const updated = pendingTickets.filter(pt => pt.id !== id);
-    setPendingTickets(updated);
-    localStorage.setItem('pendingTickets', JSON.stringify(updated));
+  const deletePendingTicket = async (id: number) => {
+    const ticketToDelete = pendingTickets.find(pt => pt.id === id);
+    if (!ticketToDelete) return;
+
+    try {
+      const userStr = localStorage.getItem('user');
+      const user = userStr ? JSON.parse(userStr) : { id: 1 };
+      
+      const total = ticketToDelete.items.reduce((acc: number, item: any) => acc + (item.precio * item.cant), 0);
+      
+      const res = await fetch('/api/sales', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: user.id,
+          total: total,
+          metodo_pago: 'EFECTIVO', // Doesn't matter, it's deleted
+          items: ticketToDelete.items,
+          is_deleted: true
+        })
+      });
+      
+      if (res.ok) {
+        const updated = pendingTickets.filter(pt => pt.id !== id);
+        setPendingTickets(updated);
+        localStorage.setItem('pendingTickets', JSON.stringify(updated));
+        fetchRecentSales();
+      } else {
+        alert('Error al eliminar pendiente');
+      }
+    } catch (err) {
+      console.error('Error deleting pending ticket:', err);
+      alert('Error de conexión');
+    }
   };
 
   const fetchRecentSales = async () => {
     try {
-      // Get today's date in YYYY-MM-DD
-      const today = new Date().toISOString().split('T')[0];
-      const res = await fetch(`/api/reports/sales?start=${today}&end=${today}`);
+      const userStr = localStorage.getItem('user');
+      const user = userStr ? JSON.parse(userStr) : { id: 1 };
+      const res = await fetch(`/api/sales/current-shift?user_id=${user.id}`);
       const data = await res.json();
       setRecentSales(data);
     } catch (err) {
@@ -204,12 +247,12 @@ export default function Caja() {
           </div>
         </div>
         
-        <div className="flex-1 overflow-y-auto p-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 content-start">
+        <div className="flex-1 overflow-y-auto p-4 flex flex-wrap gap-4 content-start">
           {filteredProductos.map(p => (
             <div 
               key={p.id} 
               onClick={() => addToTicket(p)}
-              className="bg-theme-1 border border-zinc-800 rounded-xl overflow-hidden cursor-pointer hover:border-primary hover:scale-110 transition-all group flex flex-col"
+              className="bg-theme-1 border border-zinc-800 rounded-xl overflow-hidden cursor-pointer hover:border-primary hover:scale-110 transition-all group flex flex-col w-[140px] h-[200px]"
             >
               <div className="h-24 bg-zinc-800 flex items-center justify-center overflow-hidden shrink-0">
                 {p.imagen_path ? (
@@ -219,7 +262,7 @@ export default function Caja() {
                 )}
               </div>
               <div className="p-3 flex flex-col justify-between flex-1">
-                <div className="font-bold text-sm text-center group-hover:text-primary transition-colors leading-tight">{p.nombre}</div>
+                <div className="font-bold text-sm text-center group-hover:text-primary transition-colors leading-tight line-clamp-3">{p.nombre}</div>
                 <div className="text-emerald-400 font-mono text-2xl font-bold text-right mt-2">{Math.round(p.precio)} Bs</div>
               </div>
             </div>
@@ -243,29 +286,34 @@ export default function Caja() {
               </thead>
               <tbody className="divide-y divide-zinc-800/30">
                 {recentSales.slice(0, 15).map((sale, idx) => (
-                  <tr key={idx} className={`hover:bg-zinc-800/30 ${modifiedSales.includes(sale.id) ? 'bg-blue-900/20 text-blue-200' : ''}`}>
-                    <td className="py-2 text-zinc-400">
+                  <tr key={idx} className={`hover:bg-zinc-800/30 ${sale.is_deleted ? 'bg-red-900/20 text-red-400' : modifiedSales.includes(sale.id) ? 'bg-blue-900/20 text-blue-200' : ''}`}>
+                    <td className={`py-2 ${sale.is_deleted ? 'text-red-400/70' : 'text-zinc-400'}`}>
                       <div>{new Date(sale.hora_venta).toLocaleDateString()}</div>
                       <div>{new Date(sale.hora_venta).toLocaleTimeString()}</div>
                     </td>
-                    <td className="py-2 font-medium">{sale.producto}</td>
-                    <td className="py-2 font-medium text-zinc-300">
-                      {sale.metodo_pago === 'EFECTIVO' ? 'CASH' : sale.metodo_pago}
+                    <td className={`py-2 font-medium ${sale.is_deleted ? 'line-through' : ''}`}>
+                      {sale.is_deleted && <span className="text-xs font-bold mr-2 bg-red-950 px-1 rounded">ELIMINADO</span>}
+                      {sale.producto}
                     </td>
-                    <td className="py-2 text-right font-mono text-emerald-400">{Math.round(sale.total)} Bs</td>
+                    <td className={`py-2 font-medium ${sale.is_deleted ? 'text-red-400/70' : 'text-zinc-300'}`}>
+                      {sale.is_deleted ? 'ANULADO' : (sale.metodo_pago === 'EFECTIVO' ? 'CASH' : sale.metodo_pago)}
+                    </td>
+                    <td className={`py-2 text-right font-mono ${sale.is_deleted ? 'text-red-400 line-through' : 'text-emerald-400'}`}>{Math.round(sale.total)} Bs</td>
                     <td className="py-2 text-center">
-                      <button 
-                        onClick={() => setSaleToEdit(sale)}
-                        className="text-blue-500 hover:text-blue-400 font-bold text-xs bg-blue-950/30 px-2 py-1 rounded border border-blue-900"
-                      >
-                        CORREGIR
-                      </button>
+                      {!sale.is_deleted && (
+                        <button 
+                          onClick={() => setSaleToEdit(sale)}
+                          className="text-blue-500 hover:text-blue-400 font-bold text-xs bg-blue-950/30 px-2 py-1 rounded border border-blue-900"
+                        >
+                          CORREGIR
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
                 {recentSales.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="py-4 text-center text-zinc-500">No hay ventas recientes</td>
+                    <td colSpan={5} className="py-4 text-center text-zinc-500">No hay ventas recientes</td>
                   </tr>
                 )}
               </tbody>
@@ -276,13 +324,13 @@ export default function Caja() {
               <div className="text-sm">
                 <span className="text-zinc-500 block">Ventas Efectivo</span>
                 <span className="font-mono font-bold text-emerald-400">
-                  {Math.round(recentSales.filter(s => s.metodo_pago === 'EFECTIVO' || s.metodo_pago === 'MIXTO').reduce((acc, s) => acc + (s.metodo_pago === 'MIXTO' ? (s.monto_efectivo || 0) : s.total), 0))} Bs
+                  {Math.round(recentSales.filter(s => !s.is_deleted && (s.metodo_pago === 'EFECTIVO' || s.metodo_pago === 'MIXTO')).reduce((acc, s) => acc + (s.metodo_pago === 'MIXTO' ? (s.monto_efectivo || 0) : s.total), 0))} Bs
                 </span>
               </div>
               <div className="text-sm">
                 <span className="text-zinc-500 block">Ventas QR</span>
                 <span className="font-mono font-bold text-blue-400">
-                  {Math.round(recentSales.filter(s => s.metodo_pago === 'QR' || s.metodo_pago === 'MIXTO').reduce((acc, s) => acc + (s.metodo_pago === 'MIXTO' ? (s.monto_qr || 0) : s.total), 0))} Bs
+                  {Math.round(recentSales.filter(s => !s.is_deleted && (s.metodo_pago === 'QR' || s.metodo_pago === 'MIXTO')).reduce((acc, s) => acc + (s.metodo_pago === 'MIXTO' ? (s.monto_qr || 0) : s.total), 0))} Bs
                 </span>
               </div>
             </div>
@@ -291,6 +339,7 @@ export default function Caja() {
                 if (pendingTickets.length > 0) {
                   setShowPendingAlert(true);
                 } else {
+                  fetchInventoryUsed();
                   setShowCloseModal(true);
                 }
               }}
@@ -319,7 +368,7 @@ export default function Caja() {
             <div key={item.id} className="flex items-center justify-between bg-theme-2 p-3 rounded-lg border border-zinc-800">
               <div className="flex-1">
                 <div className="font-bold text-lg">{item.nombre}</div>
-                <div className="text-zinc-400 text-lg font-mono">{Math.round(item.precio)} Bs x <span className="text-yellow-400 text-3xl font-bold">{item.cant}</span></div>
+                <div className="text-zinc-400 text-lg font-mono">{Math.round(item.precio)} Bs x <span className="text-emerald-400 text-3xl font-bold">{item.cant}</span></div>
               </div>
               <div className="flex items-center gap-4">
                 <div className="font-bold font-mono text-emerald-400 text-3xl">{Math.round(item.precio * item.cant)} Bs</div>
@@ -598,56 +647,101 @@ export default function Caja() {
       {/* Close Shift Modal */}
       {showCloseModal && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <div className="bg-theme-1 rounded-xl border border-zinc-800 w-full max-w-md p-6">
-            <h2 className="text-2xl font-bold mb-6 text-center">Cerrar Caja</h2>
-            <div className="space-y-4 mb-8">
-              <div className="flex justify-between items-center p-4 bg-zinc-800/50 rounded-lg border border-zinc-700">
-                <span className="text-zinc-400 text-lg">Ventas en Efectivo:</span>
-                <span className="font-mono font-bold text-emerald-400 text-2xl">
-                  {Math.round(recentSales.filter(s => s.metodo_pago === 'EFECTIVO' || s.metodo_pago === 'MIXTO').reduce((acc, s) => acc + (s.metodo_pago === 'MIXTO' ? (s.monto_efectivo || 0) : s.total), 0))} Bs
-                </span>
+          <div className="bg-theme-1 rounded-xl border border-zinc-800 w-full max-w-4xl p-6 flex gap-6">
+            {/* Left Column: Totals */}
+            <div className="flex-1 flex flex-col">
+              <h2 className="text-2xl font-bold mb-6 text-center">Cerrar Caja</h2>
+              <div className="space-y-4 mb-8 flex-1">
+                <div className="flex justify-between items-center p-4 bg-zinc-800/50 rounded-lg border border-zinc-700">
+                  <span className="text-zinc-400 text-lg">Ventas en Efectivo:</span>
+                  <span className="font-mono font-bold text-emerald-400 text-2xl">
+                    {Math.round(recentSales.filter(s => !s.is_deleted && (s.metodo_pago === 'EFECTIVO' || s.metodo_pago === 'MIXTO')).reduce((acc, s) => acc + (s.metodo_pago === 'MIXTO' ? (s.monto_efectivo || 0) : s.total), 0))} Bs
+                  </span>
+                </div>
+                <div className="flex justify-between items-center p-4 bg-zinc-800/50 rounded-lg border border-zinc-700">
+                  <span className="text-zinc-400 text-lg">Ventas en QR:</span>
+                  <span className="font-mono font-bold text-blue-400 text-2xl">
+                    {Math.round(recentSales.filter(s => !s.is_deleted && (s.metodo_pago === 'QR' || s.metodo_pago === 'MIXTO')).reduce((acc, s) => acc + (s.metodo_pago === 'MIXTO' ? (s.monto_qr || 0) : s.total), 0))} Bs
+                  </span>
+                </div>
+                <p className="text-center text-zinc-300 mt-6 text-lg">¿Está seguro de cerrar la caja?</p>
               </div>
-              <div className="flex justify-between items-center p-4 bg-zinc-800/50 rounded-lg border border-zinc-700">
-                <span className="text-zinc-400 text-lg">Ventas en QR:</span>
-                <span className="font-mono font-bold text-blue-400 text-2xl">
-                  {Math.round(recentSales.filter(s => s.metodo_pago === 'QR' || s.metodo_pago === 'MIXTO').reduce((acc, s) => acc + (s.metodo_pago === 'MIXTO' ? (s.monto_qr || 0) : s.total), 0))} Bs
-                </span>
-              </div>
-              <p className="text-center text-zinc-300 mt-6 text-lg">¿Está seguro de cerrar la caja?</p>
-            </div>
-            <div className="flex gap-4">
-              <button 
-                onClick={() => setShowCloseModal(false)}
-                className="flex-1 py-4 rounded-lg font-bold text-zinc-400 bg-zinc-800 hover:bg-zinc-700 transition-colors text-lg"
-              >
-                CANCELAR
-              </button>
-              <button 
-                onClick={async () => {
-                  try {
-                    const userStr = localStorage.getItem('user');
-                    const user = userStr ? JSON.parse(userStr) : { id: 1 };
-                    const res = await fetch('/api/shifts/close', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ user_id: user.id })
-                    });
-                    if (res.ok) {
-                      alert('Caja cerrada exitosamente');
-                      setShowCloseModal(false);
-                      fetchRecentSales();
-                    } else {
-                      alert('Error al cerrar caja');
+              <div className="flex gap-4 mt-auto">
+                <button 
+                  onClick={() => setShowCloseModal(false)}
+                  className="flex-1 py-4 rounded-lg font-bold text-zinc-400 bg-zinc-800 hover:bg-zinc-700 transition-colors text-lg"
+                >
+                  CANCELAR
+                </button>
+                <button 
+                  onClick={async () => {
+                    try {
+                      const userStr = localStorage.getItem('user');
+                      const user = userStr ? JSON.parse(userStr) : { id: 1 };
+                      const res = await fetch('/api/shifts/close', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ user_id: user.id })
+                      });
+                      if (res.ok) {
+                        alert('Caja cerrada exitosamente');
+                        setShowCloseModal(false);
+                        setRecentSales([]);
+                        localStorage.removeItem('user');
+                        window.location.href = '/';
+                      } else {
+                        alert('Error al cerrar caja');
+                      }
+                    } catch (err) {
+                      console.error('Error closing shift:', err);
+                      alert('Error de conexión');
                     }
-                  } catch (err) {
-                    console.error('Error closing shift:', err);
-                    alert('Error de conexión');
-                  }
-                }}
-                className="flex-1 bg-red-600 hover:bg-red-700 text-white py-4 rounded-lg font-bold transition-colors text-lg"
-              >
-                CERRAR CAJA
-              </button>
+                  }}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white py-4 rounded-lg font-bold transition-colors text-lg"
+                >
+                  CERRAR CAJA
+                </button>
+              </div>
+            </div>
+
+            {/* Right Column: Inventory */}
+            <div className="flex-1 border-l border-zinc-800 pl-6 flex flex-col max-h-[60vh]">
+              <h2 className="text-xl font-bold mb-4 text-zinc-300">Inventario Vendido</h2>
+              <div className="overflow-y-auto flex-1 pr-2 space-y-2">
+                {new Date().getHours() >= 3 && new Date().getHours() < 12 ? (
+                  <>
+                    {inventoryUsed.map((item, idx) => {
+                      let displayValue = item.cantidad_usada.toString();
+                      if (item.modo_stock === 'GRAMOS' && item.contenido_gramos > 0) {
+                        const unidades = Math.floor(item.cantidad_usada / item.contenido_gramos);
+                        const gramos = Math.round(item.cantidad_usada % item.contenido_gramos);
+                        displayValue = `${unidades} u + ${gramos} g`;
+                      } else if (item.modo_stock === 'GRAMOS') {
+                        displayValue = `${item.cantidad_usada} g`;
+                      } else {
+                        displayValue = `${item.cantidad_usada} u`;
+                      }
+                      
+                      return (
+                        <div key={idx} className="flex justify-between items-center p-3 bg-zinc-800/30 rounded-lg border border-zinc-800/50">
+                          <span className="text-zinc-300">{item.insumo}</span>
+                          <span className="font-mono font-bold text-primary text-lg">{displayValue}</span>
+                        </div>
+                      );
+                    })}
+                    {inventoryUsed.length === 0 && (
+                      <div className="text-center text-zinc-500 py-8">
+                        No hay insumos gastados en este turno
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="text-center text-zinc-500 py-8 flex flex-col items-center justify-center h-full">
+                    <Clock size={48} className="mb-4 opacity-20" />
+                    <p>El inventario gastado solo está disponible<br/>a partir de las 3:00 AM</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

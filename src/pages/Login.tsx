@@ -7,6 +7,8 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const setUser = useStore(state => state.setUser);
+  const logoUrl = useStore(state => state.logoUrl);
+  const backgroundUrl = useStore(state => state.backgroundUrl);
   const navigate = useNavigate();
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -38,13 +40,13 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center relative" style={{ backgroundImage: 'url(/assets/fondo.png)', backgroundSize: 'cover' }}>
+    <div className="min-h-screen bg-black flex items-center justify-center relative" style={{ backgroundImage: `url(${backgroundUrl || '/assets/fondo.png'})`, backgroundSize: 'cover' }}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
       
       <div className="relative z-10 bg-theme-1/80 p-8 rounded-2xl shadow-2xl w-full max-w-md border border-zinc-800">
-        <div className="text-center mb-8">
-          <img src="/assets/logo.png" alt="Logo" className="w-24 h-24 mx-auto mb-4 rounded-full bg-zinc-800" />
-          <h1 className="text-2xl font-bold text-white tracking-wider">BIENVENIDO</h1>
+        <div className="flex flex-col items-center justify-center mb-8">
+          <img src={logoUrl || "/assets/logo.png"} alt="Logo" className="w-72 h-auto mx-auto mb-14 object-contain" />
+          <h1 className="text-5xl font-bold text-white tracking-wider">BIENVENIDO</h1>
         </div>
 
         {error && <div className="bg-primary/20 border border-primary text-red-200 p-3 rounded mb-4 text-sm text-center">{error}</div>}

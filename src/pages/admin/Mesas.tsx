@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Save, Plus, QrCode, X, Edit2, Palette, Link as LinkIcon } from 'lucide-react';
 import { ConfirmModal, AlertModal, PromptModal } from '../../components/Modals';
+import { io } from 'socket.io-client';
 
 export default function Mesas() {
   const [mesas, setMesas] = useState<any[]>([]);
@@ -18,6 +19,16 @@ export default function Mesas() {
 
   useEffect(() => {
     fetchTables();
+    
+    const newSocket = io();
+    
+    newSocket.on('tables_updated', () => {
+      fetchTables();
+    });
+
+    return () => {
+      newSocket.disconnect();
+    };
   }, []);
 
   const fetchTables = async () => {
@@ -236,10 +247,13 @@ export default function Mesas() {
     if (!mesa || !containerRef.current) return;
 
     const containerRect = containerRef.current.getBoundingClientRect();
+    const mx = mesa.x !== undefined ? mesa.x : (mesa.rect_x || 0);
+    const my = mesa.y !== undefined ? mesa.y : (mesa.rect_y || 0);
+    
     setDraggingId(id);
     setDragOffset({
-      x: e.clientX - containerRect.left - mesa.x,
-      y: e.clientY - containerRect.top - mesa.y
+      x: e.clientX - containerRect.left - mx,
+      y: e.clientY - containerRect.top - my
     });
   };
 
@@ -325,7 +339,7 @@ export default function Mesas() {
 
       <div 
         ref={containerRef}
-        className="flex-1 bg-theme-2 border border-zinc-800 rounded-xl relative overflow-hidden shadow-inner" 
+        className="flex-1 bg-theme-2 border border-zinc-800 rounded-xl relative overflow-hidden shadow-inner min-h-[500px]" 
         style={{ backgroundImage: 'radial-gradient(#3f3f46 1px, transparent 1px)', backgroundSize: '20px 20px' }}
       >
         {mesas.map(m => (
@@ -335,8 +349,11 @@ export default function Mesas() {
             onDoubleClick={() => handleEditNameClick(m.id)}
             className={`absolute rounded-lg shadow-lg flex items-center justify-center group border-2 transition-colors ${draggingId === m.id ? 'cursor-grabbing border-white z-50' : 'cursor-grab border-transparent hover:border-white/50 z-10'}`}
             style={{ 
-              left: m.x, top: m.y, width: m.w, height: m.h, 
-              backgroundColor: m.color 
+              left: m.x || m.rect_x || 0, 
+              top: m.y || m.rect_y || 0, 
+              width: m.w || m.rect_w || 120, 
+              height: m.h || m.rect_h || 80, 
+              backgroundColor: m.color || m.color_rgb || '#ffffff'
             }}
           >
             <span className="font-bold text-white drop-shadow-md select-none pointer-events-none">{m.nombre}</span>

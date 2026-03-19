@@ -34,6 +34,24 @@ export function initDB() {
   const schema = fs.readFileSync(schemaPath, 'utf8');
   db.exec(schema);
 
+  try {
+    db.exec('ALTER TABLE sales ADD COLUMN is_deleted INTEGER DEFAULT 0');
+  } catch (e) {
+    // Column might already exist
+  }
+
+  try {
+    db.exec('ALTER TABLE playlist ADD COLUMN thumbnail TEXT');
+  } catch (e) {
+    // Column might already exist
+  }
+
+  try {
+    db.exec('ALTER TABLE tables ADD COLUMN orden INTEGER DEFAULT 0');
+  } catch (e) {
+    // Column might already exist
+  }
+
   // Seed admin user if not exists
   const adminExists = db.prepare('SELECT id FROM users WHERE username = ?').get('admin');
   if (!adminExists) {

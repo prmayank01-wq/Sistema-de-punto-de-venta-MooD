@@ -4,6 +4,7 @@ import { BarChart3, Users, Package, Wine, LayoutGrid, Settings, LogOut } from 'l
 
 export default function Sidebar() {
   const setUser = useStore(state => state.setUser);
+  const logoUrl = useStore(state => state.logoUrl);
 
   const links = [
     { to: '/admin/reportes', label: 'Reportes', icon: <BarChart3 size={20} /> },
@@ -16,9 +17,9 @@ export default function Sidebar() {
 
   return (
     <div className="w-64 bg-theme-1 border-r border-zinc-800 flex flex-col h-full">
-      <div className="p-6 flex items-center justify-center border-b border-zinc-800">
-        <img src="/assets/logo.png" alt="Logo" className="w-12 h-12 rounded-full bg-zinc-800" />
-        <span className="ml-3 font-bold text-xl tracking-wider text-white">ADMIN</span>
+      <div className="p-6 flex flex-col items-center justify-center border-b border-zinc-800 gap-3">
+        <img src={logoUrl || "/assets/logo.png"} alt="Logo" className="w-48 h-auto max-h-48 object-contain" />
+        <span className="font-bold text-xl tracking-wider text-white">ADMIN</span>
       </div>
       
       <nav className="flex-1 p-4 space-y-2">

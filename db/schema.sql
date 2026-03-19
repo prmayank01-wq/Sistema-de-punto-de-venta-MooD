@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS sales (
   shift_id INTEGER NOT NULL,
   total REAL NOT NULL,
   metodo_pago TEXT NOT NULL CHECK(metodo_pago IN ('EFECTIVO', 'QR', 'MIXTO')),
+  is_deleted INTEGER DEFAULT 0,
   FOREIGN KEY(user_id) REFERENCES users(id),
   FOREIGN KEY(shift_id) REFERENCES shifts(id)
 );
@@ -121,6 +122,7 @@ CREATE TABLE IF NOT EXISTS playlist (
   youtube_id TEXT NOT NULL,
   tipo TEXT NOT NULL CHECK(tipo IN ('CANCION', 'KARAOKE')),
   estado TEXT NOT NULL DEFAULT 'PENDIENTE' CHECK(estado IN ('PENDIENTE', 'HECHA')),
+  thumbnail TEXT,
   ts DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY(table_id) REFERENCES tables(id)
 );

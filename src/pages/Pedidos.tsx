@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Menu, Mic, Music, MessageSquare, Send, Search } from 'lucide-react';
 import { io, Socket } from 'socket.io-client';
+import { useStore } from '../store/useStore';
 
 export default function Pedidos() {
   const [searchParams] = useSearchParams();
@@ -13,6 +14,11 @@ export default function Pedidos() {
   const [messages, setMessages] = useState<{from: string, text: string}[]>([]);
   const [inputMsg, setInputMsg] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const logoUrl = useStore(state => state.logoUrl);
+  const [menu, setMenu] = useState<any[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
 
   useEffect(() => {
     if (tableToken) {
@@ -23,8 +29,26 @@ export default function Pedidos() {
       }
     }
 
+    // Fetch menu
+    fetch('/api/products')
+      .then(res => res.json())
+      .then(data => {
+        setMenu(data);
+        const cats = Array.from(new Set(data.map((p: any) => p.tipo))).filter(Boolean);
+        setCategories(cats as string[]);
+      });
+
+    if (tableId) {
+      fetch('/api/chats/active')
+        .then(res => res.json())
+        .then(data => {
+          const tableChats = data.filter((c: any) => c.table_id == tableId);
+          setMessages(tableChats.map((c: any) => ({ from: c.from_role, text: c.message })));
+        });
+    }
+
     // Connect to Socket.IO
-    const newSocket = io(import.meta.env.VITE_BASE_URL_PEDIDOS || 'http://localhost:3000');
+    const newSocket = io();
     setSocket(newSocket);
 
     newSocket.on('connect', () => {
@@ -52,174 +76,279 @@ export default function Pedidos() {
     setInputMsg('');
   };
 
-  const requestSong = (title: string, tipo: 'CANCION' | 'KARAOKE') => {
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) return;
+    setIsSearching(true);
+    try {
+      const term = activeTab === 'KARAOKE' ? `${searchQuery} karaoke` : searchQuery;
+      const res = await fetch(`/api/search-youtube?q=${encodeURIComponent(term)}`);
+      const data = await res.json();
+      setSearchResults(data);
+    } catch (err) {
+      console.error('Error searching:', err);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const requestSong = (title: string, artist: string, tipo: 'CANCION' | 'KARAOKE', thumbnail: string, url: string) => {
     if (!socket) return;
-    socket.emit('add_playlist', {
-      tableId: tableId,
-      title,
-      youtubeId: 'dummy_id', // In a real app, get from YouTube API
-      tipo
-    });
+    const fullTitle = `${title} - ${artist}`;
     
-    // Also send as a chat message
-    const icon = tipo === 'KARAOKE' ? '🎤' : '🎵';
+    const payload = JSON.stringify({
+      type: 'song_request',
+      title: fullTitle,
+      tipo,
+      thumbnail,
+      url
+    });
+
     socket.emit('chat_message', {
       tableId: tableId,
-      message: `${icon} [${tipo}] ${title}`,
+      message: payload,
       fromRole: 'MESA'
     });
     
-    alert(`${tipo === 'CANCION' ? 'Canción' : 'Karaoke'} solicitado con éxito!`);
     setActiveTab('CHAT');
   };
 
-  // Mock Menu
-  const menu = [
-    { id: 1, nombre: 'Cerveza Artesanal IPA', precio: 1200, tipo: 'BOTELLA' },
-    { id: 2, nombre: 'Fernet con Cola', precio: 1500, tipo: 'JARRA' },
-    { id: 3, nombre: 'Tequila Jose Cuervo', precio: 800, tipo: 'SHOT' },
-  ];
+  const requestProduct = (product: any) => {
+    if (!socket) return;
+    
+    const payload = JSON.stringify({
+      type: 'product_request',
+      id: product.id,
+      nombre: product.nombre,
+      precio: product.precio,
+      imagen_path: product.imagen_path
+    });
+
+    socket.emit('chat_message', {
+      tableId: tableId,
+      message: payload,
+      fromRole: 'MESA'
+    });
+    
+    setActiveTab('CHAT');
+  };
 
   return (
-    <div className="flex flex-col h-screen bg-black text-white font-sans overflow-hidden">
+    <div className="flex flex-col h-screen bg-black text-zinc-100 font-sans overflow-hidden">
       {/* Header */}
-      <header className="bg-theme-1 p-4 border-b border-zinc-800 flex justify-between items-center shrink-0">
-        <div className="flex items-center gap-3">
-          <img src="/assets/logo.png" alt="Logo" className="w-8 h-8 rounded-full bg-zinc-800" />
-          <h1 className="font-bold text-lg tracking-wider">{tableName}</h1>
+      <header className="bg-zinc-900 p-4 border-b border-zinc-800 flex justify-center items-center shrink-0">
+        <div className="flex flex-row items-center gap-4">
+          <img src={logoUrl || "/assets/logo.png"} alt="Logo" className="w-16 h-16 object-contain" />
+          <h1 className="font-bold text-3xl tracking-wider">{tableName}</h1>
         </div>
       </header>
 
+      {/* Top Navigation */}
+      <nav className="bg-zinc-900 border-b border-zinc-800 flex overflow-x-auto p-2 shrink-0 gap-2">
+        <button onClick={() => { setActiveTab('MENU'); setSearchResults([]); setSearchQuery(''); }} className={`flex-1 min-w-fit flex flex-row justify-center items-center gap-2 p-3 rounded-lg transition-colors bg-red-600 text-white ${activeTab === 'MENU' ? 'ring-2 ring-white' : 'opacity-80 hover:opacity-100'}`}>
+          <Menu size={24} />
+          <span className="text-[20px] font-bold whitespace-nowrap">MENÚ</span>
+        </button>
+        <button onClick={() => { setActiveTab('KARAOKE'); setSearchResults([]); setSearchQuery(''); }} className={`flex-1 min-w-fit flex flex-row justify-center items-center gap-2 p-3 rounded-lg transition-colors bg-green-600 text-white ${activeTab === 'KARAOKE' ? 'ring-2 ring-white' : 'opacity-80 hover:opacity-100'}`}>
+          <Mic size={24} />
+          <span className="text-[20px] font-bold whitespace-nowrap">KARAOKE</span>
+        </button>
+        <button onClick={() => { setActiveTab('CANCIONES'); setSearchResults([]); setSearchQuery(''); }} className={`flex-1 min-w-fit flex flex-row justify-center items-center gap-2 p-3 rounded-lg transition-colors bg-blue-600 text-white ${activeTab === 'CANCIONES' ? 'ring-2 ring-white' : 'opacity-80 hover:opacity-100'}`}>
+          <Music size={24} />
+          <span className="text-[20px] font-bold whitespace-nowrap">CANCIONES</span>
+        </button>
+        <button onClick={() => { setActiveTab('CHAT'); setSearchResults([]); setSearchQuery(''); }} className={`flex-1 min-w-fit flex flex-row justify-center items-center gap-2 p-3 rounded-lg transition-colors bg-yellow-500 text-black ${activeTab === 'CHAT' ? 'ring-2 ring-white' : 'opacity-80 hover:opacity-100'}`}>
+          <MessageSquare size={24} />
+          <span className="text-[20px] font-bold whitespace-nowrap">CHAT</span>
+        </button>
+      </nav>
+
       {/* Main Content Area */}
-      <main className="flex-1 overflow-y-auto bg-theme-2 p-4 pb-24">
+      <main className="flex-1 overflow-hidden bg-zinc-950 p-4 flex flex-col">
         {activeTab === 'HOME' && (
-          <div className="h-full flex flex-col justify-center gap-4">
-            <div className="grid grid-cols-2 gap-4 flex-1 max-h-[50vh]">
+          <div className="h-full flex flex-col justify-center gap-4 overflow-y-auto">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1 max-h-[50vh]">
               <button 
                 onClick={() => setActiveTab('MENU')}
-                className="bg-theme-1 border border-zinc-800 rounded-2xl flex flex-col items-center justify-center gap-4 hover:bg-zinc-800 transition-colors"
+                className="bg-zinc-900 border border-zinc-800 rounded-2xl flex flex-row items-center justify-center gap-4 hover:bg-zinc-800 transition-colors"
+                style={{ color: 'white' }}
               >
-                <Menu size={48} className="text-primary" />
-                <span className="font-bold text-xl">MENÚ</span>
+                <Menu size={48} color="white" />
+                <span className="font-bold text-3xl" style={{ color: 'white' }}>MENÚ</span>
               </button>
               <button 
                 onClick={() => setActiveTab('CHAT')}
-                className="bg-theme-1 border border-zinc-800 rounded-2xl flex flex-col items-center justify-center gap-4 hover:bg-zinc-800 transition-colors"
+                className="bg-zinc-900 border border-zinc-800 rounded-2xl flex flex-row items-center justify-center gap-4 hover:bg-zinc-800 transition-colors"
+                style={{ color: 'white' }}
               >
-                <MessageSquare size={48} className="text-primary" />
-                <span className="font-bold text-xl">CHAT</span>
+                <MessageSquare size={48} color="white" />
+                <span className="font-bold text-3xl" style={{ color: 'white' }}>CHAT</span>
               </button>
             </div>
-            <div className="grid grid-cols-2 gap-4 flex-1 max-h-[50vh]">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1 max-h-[50vh]">
               <button 
                 onClick={() => setActiveTab('KARAOKE')}
-                className="bg-theme-1 border border-zinc-800 rounded-2xl flex flex-col items-center justify-center gap-4 hover:bg-zinc-800 transition-colors"
+                className="bg-zinc-900 border border-zinc-800 rounded-2xl flex flex-row items-center justify-center gap-4 hover:bg-zinc-800 transition-colors"
+                style={{ color: 'white' }}
               >
-                <Mic size={48} className="text-primary" />
-                <span className="font-bold text-xl">KARAOKE</span>
+                <Mic size={48} color="white" />
+                <span className="font-bold text-3xl" style={{ color: 'white' }}>KARAOKE</span>
               </button>
               <button 
                 onClick={() => setActiveTab('CANCIONES')}
-                className="bg-theme-1 border border-zinc-800 rounded-2xl flex flex-col items-center justify-center gap-4 hover:bg-zinc-800 transition-colors"
+                className="bg-zinc-900 border border-zinc-800 rounded-2xl flex flex-row items-center justify-center gap-4 hover:bg-zinc-800 transition-colors"
+                style={{ color: 'white' }}
               >
-                <Music size={48} className="text-primary" />
-                <span className="font-bold text-xl">CANCIONES</span>
+                <Music size={48} color="white" />
+                <span className="font-bold text-3xl" style={{ color: 'white' }}>CANCIONES</span>
               </button>
             </div>
           </div>
         )}
 
         {activeTab === 'MENU' && (
-          <div className="space-y-6">
+          <div className="space-y-6 overflow-y-auto flex-1 pr-2">
             <h2 className="text-2xl font-bold mb-4">Nuestro Menú</h2>
-            {['BOTELLA', 'JARRA', 'SHOT'].map(tipo => (
-              <div key={tipo} className="space-y-3">
-                <h3 className="text-primary font-bold text-lg border-b border-zinc-800 pb-2">{tipo}S</h3>
-                <div className="grid grid-cols-1 gap-3">
-                  {menu.filter(m => m.tipo === tipo).map(item => (
-                    <div key={item.id} className="bg-theme-1 p-4 rounded-xl border border-zinc-800 flex justify-between items-center">
-                      <div>
-                        <h4 className="font-bold">{item.nombre}</h4>
-                        <p className="text-emerald-400 font-mono text-sm mt-1">${item.precio}</p>
+            {categories.map(categoria => (
+              <div key={categoria} className="space-y-3">
+                <h3 className="text-primary font-bold text-lg border-b border-zinc-800 pb-2">{categoria}</h3>
+                <div className="flex flex-wrap gap-4 content-start">
+                  {menu.filter(m => m.tipo === categoria).map(item => (
+                    <button 
+                      key={item.id} 
+                      onClick={() => requestProduct(item)}
+                      className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden cursor-pointer hover:border-primary hover:scale-110 transition-all group flex flex-col w-[140px] h-[200px]"
+                    >
+                      <div className="h-24 bg-zinc-800 flex items-center justify-center overflow-hidden shrink-0 w-full">
+                        {item.imagen_path ? (
+                          <img src={item.imagen_path} alt={item.nombre} className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="text-zinc-600 text-xs">IMG</span>
+                        )}
                       </div>
-                    </div>
+                      <div className="p-3 flex flex-col justify-between flex-1 w-full">
+                        <div className="font-bold text-sm text-center group-hover:text-primary transition-colors leading-tight line-clamp-3">{item.nombre}</div>
+                        <div className="text-emerald-400 font-mono text-2xl font-bold text-right mt-2">{Math.round(item.precio)} Bs</div>
+                      </div>
+                    </button>
                   ))}
                 </div>
               </div>
             ))}
+            {menu.length === 0 && <p className="text-zinc-500">No hay productos disponibles.</p>}
           </div>
         )}
 
         {(activeTab === 'KARAOKE' || activeTab === 'CANCIONES') && (
-          <div className="space-y-6 h-full flex flex-col">
-            <h2 className="text-2xl font-bold mb-2">Pedir {activeTab === 'KARAOKE' ? 'Karaoke' : 'Canción'}</h2>
-            <p className="text-sm text-zinc-400 mb-4">
-              {activeTab === 'KARAOKE' 
-                ? 'Aquí busca la canción de tu artista favorito para cantarla. (Se añadirá "karaoke" a tu búsqueda)' 
-                : 'Aquí busca la canción de tu artista favorito para escucharla.'}
-            </p>
-            <div className="flex gap-2 mb-4">
-              <div className="flex-1 flex items-center gap-2 bg-theme-1 px-4 py-3 rounded-xl border border-zinc-800">
-                <Search size={20} className="text-zinc-500" />
-                <input 
-                  type="text" 
-                  placeholder="Artista o canción..." 
-                  className="bg-transparent border-none text-white focus:outline-none w-full"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
+          <div className="space-y-6 h-full flex flex-col overflow-hidden">
+            <div className="shrink-0">
+              <h2 className="text-2xl font-bold mb-2">Pedir {activeTab === 'KARAOKE' ? 'Karaoke' : 'Canción'}</h2>
+              <p className="text-sm text-zinc-400 mb-4">
+                {activeTab === 'KARAOKE' 
+                  ? 'Aquí busca la canción de tu artista favorito para cantarla. (Se añadirá "karaoke" a tu búsqueda)' 
+                  : 'Aquí busca la canción de tu artista favorito para escucharla.'}
+              </p>
+              <div className="flex gap-2 mb-4">
+                <div className="flex-1 flex items-center gap-2 bg-zinc-900 px-4 py-3 rounded-xl border border-zinc-800">
+                  <Search size={20} className="text-zinc-500" />
+                  <input 
+                    type="text" 
+                    placeholder="Artista o canción..." 
+                    className="bg-transparent border-none text-zinc-100 focus:outline-none w-full"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                  />
+                </div>
+                <button 
+                  onClick={handleSearch}
+                  disabled={isSearching}
+                  className="bg-primary hover:bg-primary/80 disabled:opacity-50 text-zinc-100 px-6 rounded-xl font-bold transition-colors"
+                >
+                  {isSearching ? '...' : 'Buscar'}
+                </button>
               </div>
-              <button className="bg-primary hover:bg-primary/80 text-white px-6 rounded-xl font-bold transition-colors">
-                Buscar
-              </button>
             </div>
 
-            {/* Mock Results */}
-            {searchQuery && (
-              <div className="flex-1 overflow-y-auto space-y-3">
-                {[1, 2, 3].map(i => {
-                  const displayQuery = activeTab === 'KARAOKE' ? `${searchQuery} Karaoke` : searchQuery;
-                  return (
-                    <div key={i} className="bg-theme-1 p-3 rounded-xl border border-zinc-800 flex gap-4 items-center" onClick={() => requestSong(`${displayQuery} - Resultado ${i}`, activeTab === 'KARAOKE' ? 'KARAOKE' : 'CANCION')}>
-                      <div className="w-24 h-16 bg-zinc-800 rounded-lg flex items-center justify-center text-zinc-600 text-xs">
-                        Miniatura
-                      </div>
-                      <div className="flex-1">
-                        <h4 className="font-bold text-sm line-clamp-2">{displayQuery} - Resultado de búsqueda {i}</h4>
-                        <p className="text-xs text-zinc-500 mt-1">Canal de YouTube</p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+            {/* Search Results */}
+            <div className="flex-1 overflow-y-auto space-y-3 pr-2 min-h-0">
+              {searchResults.map((result, i) => (
+                <div 
+                  key={i} 
+                  className="bg-zinc-900 p-3 rounded-xl border border-zinc-800 flex gap-4 items-center cursor-pointer hover:bg-zinc-800 transition-colors" 
+                  onClick={() => requestSong(result.title, result.artist, activeTab === 'KARAOKE' ? 'KARAOKE' : 'CANCION', result.thumbnail, result.url)}
+                >
+                  <img src={result.thumbnail} alt="Cover" className="w-16 h-16 rounded-lg object-cover" />
+                  <div className="flex-1">
+                    <h4 className="font-bold text-sm line-clamp-2">{result.title}</h4>
+                    <p className="text-xs text-zinc-500 mt-1">{result.artist}</p>
+                  </div>
+                </div>
+              ))}
+              {searchResults.length === 0 && !isSearching && searchQuery && (
+                <p className="text-zinc-500 text-center py-8">No se encontraron resultados.</p>
+              )}
+            </div>
           </div>
         )}
 
         {activeTab === 'CHAT' && (
-          <div className="flex flex-col h-full">
-            <h2 className="text-2xl font-bold mb-4 shrink-0">Chat con DJ/Caja</h2>
-            <div className="flex-1 overflow-y-auto space-y-4 mb-4 bg-theme-1 p-4 rounded-xl border border-zinc-800">
-              {messages.map((msg, i) => (
-                <div key={i} className={`flex flex-col ${msg.from === 'MESA' ? 'items-end' : 'items-start'}`}>
-                  <div className={`px-4 py-2 rounded-2xl max-w-[80%] ${msg.from === 'MESA' ? 'bg-primary text-white rounded-tr-sm' : 'bg-zinc-800 text-white rounded-tl-sm'}`}>
-                    <p className="text-sm">{msg.text}</p>
+          <div className="flex flex-col h-full overflow-hidden">
+            <h2 className="text-3xl font-bold mb-4 shrink-0">Chatea con la Barra</h2>
+            <div className="flex-1 overflow-y-auto space-y-4 mb-4 bg-zinc-900 p-4 rounded-xl border border-zinc-800 min-h-0">
+              {messages.map((msg, i) => {
+                let content = <p className="text-lg">{msg.text}</p>;
+                try {
+                  if (msg.text.startsWith('{')) {
+                    const data = JSON.parse(msg.text);
+                    if (data.type === 'song_request') {
+                      content = (
+                        <div className="flex items-center gap-3">
+                          {data.thumbnail && <img src={data.thumbnail} alt="Cover" className="w-16 h-16 rounded object-cover" />}
+                          <div>
+                            <div className="text-sm font-bold text-white mb-1">
+                              {data.tipo === 'KARAOKE' ? '🎤 Pedido de Karaoke' : '🎵 Pedido de Canción'}
+                            </div>
+                            <div className="text-lg font-bold">{data.title}</div>
+                          </div>
+                        </div>
+                      );
+                    } else if (data.type === 'product_request') {
+                      content = (
+                        <div className="flex items-center gap-4">
+                          {data.imagen_path && <img src={data.imagen_path} alt="Product" className="w-24 h-24 rounded-lg object-cover shadow-md" />}
+                          <div>
+                            <div className="text-base font-bold text-emerald-400 mb-1">🍹 Pedido de Menú</div>
+                            <div className="text-2xl font-bold">{data.nombre}</div>
+                            <div className="text-xl font-bold text-yellow-400 mt-2">Bs. {data.precio}</div>
+                          </div>
+                        </div>
+                      );
+                    }
+                  }
+                } catch (e) {}
+
+                return (
+                  <div key={i} className={`flex flex-col ${msg.from === 'MESA' ? 'items-end' : 'items-start'}`}>
+                    <div className={`px-4 py-2 rounded-2xl max-w-[80%] ${msg.from === 'MESA' ? 'bg-zinc-800 text-zinc-100 rounded-tr-sm' : 'bg-primary text-zinc-100 rounded-tl-sm'}`}>
+                      {content}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
+              {messages.length === 0 && <p className="text-zinc-500 text-center py-8">No hay mensajes aún.</p>}
             </div>
             <div className="flex gap-2 shrink-0">
               <input 
                 type="text" 
                 placeholder="Escribe un mensaje..." 
-                className="flex-1 bg-theme-1 border border-zinc-800 rounded-full px-4 py-3 text-white focus:outline-none focus:border-primary"
+                className="flex-1 bg-zinc-900 border border-zinc-800 rounded-full px-4 py-3 text-zinc-100 focus:outline-none focus:border-primary"
                 value={inputMsg}
                 onChange={(e) => setInputMsg(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
               />
               <button 
                 onClick={sendMessage}
-                className="bg-primary hover:bg-primary/80 text-white w-12 h-12 rounded-full flex items-center justify-center transition-colors shrink-0"
+                className="bg-primary hover:bg-primary/80 text-zinc-100 w-12 h-12 rounded-full flex items-center justify-center transition-colors shrink-0"
               >
                 <Send size={20} />
               </button>
@@ -227,26 +356,6 @@ export default function Pedidos() {
           </div>
         )}
       </main>
-
-      {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-theme-1 border-t border-zinc-800 flex justify-around p-2 pb-safe">
-        <button onClick={() => setActiveTab('MENU')} className={`flex flex-col items-center p-2 rounded-lg transition-colors ${activeTab === 'MENU' ? 'text-primary' : 'text-zinc-500 hover:text-zinc-300'}`}>
-          <Menu size={24} />
-          <span className="text-[10px] font-bold mt-1">MENÚ</span>
-        </button>
-        <button onClick={() => setActiveTab('KARAOKE')} className={`flex flex-col items-center p-2 rounded-lg transition-colors ${activeTab === 'KARAOKE' ? 'text-primary' : 'text-zinc-500 hover:text-zinc-300'}`}>
-          <Mic size={24} />
-          <span className="text-[10px] font-bold mt-1">KARAOKE</span>
-        </button>
-        <button onClick={() => setActiveTab('CANCIONES')} className={`flex flex-col items-center p-2 rounded-lg transition-colors ${activeTab === 'CANCIONES' ? 'text-primary' : 'text-zinc-500 hover:text-zinc-300'}`}>
-          <Music size={24} />
-          <span className="text-[10px] font-bold mt-1">CANCIONES</span>
-        </button>
-        <button onClick={() => setActiveTab('CHAT')} className={`flex flex-col items-center p-2 rounded-lg transition-colors ${activeTab === 'CHAT' ? 'text-primary' : 'text-zinc-500 hover:text-zinc-300'}`}>
-          <MessageSquare size={24} />
-          <span className="text-[10px] font-bold mt-1">CHAT</span>
-        </button>
-      </nav>
     </div>
   );
 }

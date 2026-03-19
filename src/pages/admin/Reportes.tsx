@@ -9,6 +9,7 @@ export default function Reportes() {
   const [reportes, setReportes] = useState<any[]>([]);
   const [ventas, setVentas] = useState<any[]>([]);
   const [topProducts, setTopProducts] = useState<any[]>([]);
+  const [inventoryUsed, setInventoryUsed] = useState<any[]>([]);
 
   useEffect(() => {
     fetchData();
@@ -25,10 +26,11 @@ export default function Reportes() {
         queryParams = `?end=${fechaFin}`;
       }
 
-      const [reportsRes, salesRes, topRes] = await Promise.all([
+      const [reportsRes, salesRes, topRes, invRes] = await Promise.all([
         fetch('/api/reports'),
         fetch(`/api/reports/sales${queryParams}`),
-        fetch(`/api/reports/top-products${queryParams}`)
+        fetch(`/api/reports/top-products${queryParams}`),
+        fetch(`/api/reports/inventory-used${queryParams}`)
       ]);
 
       if (reportsRes.ok) {
@@ -45,6 +47,11 @@ export default function Reportes() {
         const data = await topRes.json();
         setTopProducts(data);
       }
+
+      if (invRes.ok) {
+        const data = await invRes.json();
+        setInventoryUsed(data);
+      }
     } catch (err) {
       console.error('Error fetching data:', err);
     }
@@ -54,7 +61,7 @@ export default function Reportes() {
     fetchData();
   };
 
-  const handleCrearPDF = (id?: number) => {
+  const handleCrearPDF = async (id?: number) => {
     const doc = new jsPDF();
     
     if (id) {
@@ -62,26 +69,79 @@ export default function Reportes() {
       const reporte = reportes.find(r => r.id === id);
       if (!reporte) return;
       
-      doc.setFontSize(20);
-      doc.text(`Reporte de Turno #${reporte.id}`, 14, 22);
-      
-      doc.setFontSize(12);
-      doc.text(`Fecha: ${reporte.fecha}`, 14, 32);
-      doc.text(`Cajero: ${reporte.cajero}`, 14, 40);
-      
-      autoTable(doc, {
-        startY: 50,
-        head: [['Método', 'Monto']],
-        body: [
-          ['QR', `$${reporte.qr.toFixed(2)}`],
-          ['Efectivo', `$${reporte.efectivo.toFixed(2)}`],
-          ['Total', `$${reporte.total.toFixed(2)}`]
-        ],
-        theme: 'grid',
-        headStyles: { fillColor: [220, 38, 38] } // Red-600
-      });
-      
-      doc.save(`Reporte_Turno_${reporte.id}.pdf`);
+      try {
+        const [salesRes, invRes] = await Promise.all([
+          fetch(`/api/reports/sales?shift_id=${id}`),
+          fetch(`/api/reports/inventory-used?shift_id=${id}`)
+        ]);
+        
+        const shiftSales = await salesRes.json();
+        const shiftInv = await invRes.json();
+        
+        doc.setFontSize(20);
+        doc.text(`Reporte de Turno #${reporte.id}`, 14, 22);
+        
+        doc.setFontSize(12);
+        doc.text(`Fecha: ${reporte.fecha}`, 14, 32);
+        doc.text(`Cajero: ${reporte.cajero}`, 14, 40);
+        
+        const tableData = shiftSales.map((v: any) => [
+          v.hora_venta,
+          v.is_deleted ? `[ELIMINADO] ${v.producto}` : v.producto,
+          v.cajero,
+          v.is_deleted ? 'ANULADO' : v.metodo_pago,
+          v.is_deleted ? '0.00 Bs.' : `${v.total.toFixed(2)} Bs.`
+        ]);
+        
+        const totalGeneral = shiftSales.filter((v: any) => !v.is_deleted).reduce((sum: number, v: any) => sum + v.total, 0);
+        
+        tableData.push([
+          'TOTAL',
+          '-',
+          '-',
+          '-',
+          `${totalGeneral.toFixed(2)} Bs.`
+        ]);
+
+        autoTable(doc, {
+          startY: 50,
+          head: [['FECHA/HORA', 'PRODUCTO', 'CAJERO', 'PAGO', 'TOTAL']],
+          body: tableData,
+          theme: 'grid',
+          headStyles: { fillColor: [220, 38, 38] },
+          footStyles: { fillColor: [40, 40, 40] }
+        });
+        
+        if (shiftInv.length > 0) {
+          const finalY = (doc as any).lastAutoTable.finalY || 150;
+          doc.setFontSize(16);
+          doc.text('Inventario Gastado', 14, finalY + 15);
+          
+          autoTable(doc, {
+            startY: finalY + 20,
+            head: [['Insumo', 'Cantidad Usada']],
+            body: shiftInv.map((i: any) => {
+              let displayValue = i.cantidad_usada.toString();
+              if (i.modo_stock === 'GRAMOS' && i.contenido_gramos > 0) {
+                const unidades = Math.floor(i.cantidad_usada / i.contenido_gramos);
+                const gramos = Math.round(i.cantidad_usada % i.contenido_gramos);
+                displayValue = `${unidades} u + ${gramos} g`;
+              } else if (i.modo_stock === 'GRAMOS') {
+                displayValue = `${i.cantidad_usada} g`;
+              } else {
+                displayValue = `${i.cantidad_usada} u`;
+              }
+              return [i.insumo, displayValue];
+            }),
+            theme: 'grid',
+            headStyles: { fillColor: [220, 38, 38] }
+          });
+        }
+        
+        doc.save(`Reporte_Turno_${reporte.id}.pdf`);
+      } catch (err) {
+        console.error('Error fetching shift details for PDF:', err);
+      }
     } else {
       // General report
       doc.setFontSize(20);
@@ -94,30 +154,56 @@ export default function Reportes() {
       
       const tableData = ventas.map(v => [
         v.hora_venta,
-        v.producto,
+        v.is_deleted ? `[ELIMINADO] ${v.producto}` : v.producto,
         v.cajero,
-        v.metodo_pago,
-        `$${v.total.toFixed(2)}`
+        v.is_deleted ? 'ANULADO' : v.metodo_pago,
+        v.is_deleted ? '0.00 Bs.' : `${v.total.toFixed(2)} Bs.`
       ]);
       
-      const totalGeneral = ventas.reduce((sum, v) => sum + v.total, 0);
+      const totalGeneral = ventas.filter(v => !v.is_deleted).reduce((sum, v) => sum + v.total, 0);
       
       tableData.push([
         'TOTAL',
         '-',
         '-',
         '-',
-        `$${totalGeneral.toFixed(2)}`
+        `${totalGeneral.toFixed(2)} Bs.`
       ]);
 
       autoTable(doc, {
         startY: fechaInicio || fechaFin ? 40 : 32,
-        head: [['Hora de Venta', 'Producto', 'Cajero', 'Efectivo o QR', 'Total']],
+        head: [['FECHA/HORA', 'PRODUCTO', 'CAJERO', 'PAGO', 'TOTAL']],
         body: tableData,
         theme: 'grid',
         headStyles: { fillColor: [220, 38, 38] },
         footStyles: { fillColor: [40, 40, 40] }
       });
+      
+      if (inventoryUsed.length > 0) {
+        const finalY = (doc as any).lastAutoTable.finalY || 150;
+        doc.setFontSize(16);
+        doc.text('Inventario Gastado', 14, finalY + 15);
+        
+        autoTable(doc, {
+          startY: finalY + 20,
+          head: [['Insumo', 'Cantidad Usada']],
+          body: inventoryUsed.map(i => {
+            let displayValue = i.cantidad_usada.toString();
+            if (i.modo_stock === 'GRAMOS' && i.contenido_gramos > 0) {
+              const unidades = Math.floor(i.cantidad_usada / i.contenido_gramos);
+              const gramos = Math.round(i.cantidad_usada % i.contenido_gramos);
+              displayValue = `${unidades} u + ${gramos} g`;
+            } else if (i.modo_stock === 'GRAMOS') {
+              displayValue = `${i.cantidad_usada} g`;
+            } else {
+              displayValue = `${i.cantidad_usada} u`;
+            }
+            return [i.insumo, displayValue];
+          }),
+          theme: 'grid',
+          headStyles: { fillColor: [220, 38, 38] }
+        });
+      }
       
       doc.save('Reporte_General.pdf');
     }
@@ -178,9 +264,9 @@ export default function Reportes() {
                   <tr key={r.id} className="hover:bg-zinc-800/50 transition-colors">
                     <td className="py-4">{r.fecha}</td>
                     <td className="py-4">{r.cajero}</td>
-                    <td className="py-4 text-emerald-400">${r.qr.toFixed(2)}</td>
-                    <td className="py-4 text-emerald-400">${r.efectivo.toFixed(2)}</td>
-                    <td className="py-4 font-bold">${r.total.toFixed(2)}</td>
+                    <td className="py-4 text-emerald-400">{r.qr.toFixed(2)} Bs.</td>
+                    <td className="py-4 text-emerald-400">{r.efectivo.toFixed(2)} Bs.</td>
+                    <td className="py-4 font-bold">{r.total.toFixed(2)} Bs.</td>
                     <td className="py-4 text-right">
                       <button 
                         onClick={() => handleCrearPDF(r.id)}
@@ -198,7 +284,7 @@ export default function Reportes() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-3 gap-6">
         <div className="bg-theme-1 p-6 rounded-xl border border-zinc-800">
           <h2 className="text-lg font-bold mb-4 text-emerald-400">MÁS VENDIDOS</h2>
           <div className="space-y-3">
@@ -211,7 +297,7 @@ export default function Reportes() {
                     <span>{p.nombre}</span>
                     <span className="font-mono">{p.total_vendido}</span>
                   </div>
-                  <div className="w-full bg-zinc-800 rounded-full h-2">
+                  <div className="w-full bg-zinc-800 rounded-full h-2 mt-1">
                     <div className="bg-emerald-500 h-2 rounded-full" style={{ width }}></div>
                   </div>
                 </div>
@@ -233,13 +319,47 @@ export default function Reportes() {
                     <span>{p.nombre}</span>
                     <span className="font-mono">{p.total_vendido}</span>
                   </div>
-                  <div className="w-full bg-zinc-800 rounded-full h-2">
+                  <div className="w-full bg-zinc-800 rounded-full h-2 mt-1">
                     <div className="bg-primary h-2 rounded-full" style={{ width }}></div>
                   </div>
                 </div>
               );
             })}
             {topProducts.length === 0 && <p className="text-zinc-500 text-sm">No hay datos de ventas.</p>}
+          </div>
+        </div>
+
+        <div className="bg-theme-1 p-6 rounded-xl border border-zinc-800">
+          <h2 className="text-lg font-bold mb-4 text-blue-400">INVENTARIO GASTADO</h2>
+          <div className="space-y-3">
+            {inventoryUsed.slice(0, 5).map((p, i) => {
+              const maxVendido = inventoryUsed[0]?.cantidad_usada || 1;
+              const width = `${(p.cantidad_usada / maxVendido) * 100}%`;
+              
+              let displayValue = p.cantidad_usada.toString();
+              if (p.modo_stock === 'GRAMOS' && p.contenido_gramos > 0) {
+                const unidades = Math.floor(p.cantidad_usada / p.contenido_gramos);
+                const gramos = Math.round(p.cantidad_usada % p.contenido_gramos);
+                displayValue = `${unidades} u + ${gramos} g`;
+              } else if (p.modo_stock === 'GRAMOS') {
+                displayValue = `${p.cantidad_usada} g`;
+              } else {
+                displayValue = `${p.cantidad_usada} u`;
+              }
+
+              return (
+                <div key={i}>
+                  <div className="flex items-center justify-between text-sm">
+                    <span>{p.insumo}</span>
+                    <span className="font-mono">{displayValue}</span>
+                  </div>
+                  <div className="w-full bg-zinc-800 rounded-full h-2 mt-1">
+                    <div className="bg-blue-500 h-2 rounded-full" style={{ width }}></div>
+                  </div>
+                </div>
+              );
+            })}
+            {inventoryUsed.length === 0 && <p className="text-zinc-500 text-sm">No hay datos de inventario.</p>}
           </div>
         </div>
       </div>

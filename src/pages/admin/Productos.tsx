@@ -242,7 +242,7 @@ export default function Productos() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-zinc-400 mb-1">
-                  Precio ($)
+                  Precio (Bs.)
                 </label>
                 <input
                   type="number"
@@ -356,6 +356,7 @@ export default function Productos() {
                       setCurrentComponente({
                         ...currentComponente,
                         insumo_id: e.target.value,
+                        cantidad: newProducto.tipo === "BOTELLA" && !currentComponente.cantidad ? "1" : currentComponente.cantidad
                       })
                     }
                     className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-primary text-sm"
@@ -526,7 +527,7 @@ export default function Productos() {
                     </span>
                   </td>
                   <td className="py-4 font-bold text-emerald-400 font-mono">
-                    ${p.precio.toFixed(2)}
+                    {p.precio.toFixed(2)} Bs.
                   </td>
                   <td className="py-4 text-right space-x-2">
                     <button
