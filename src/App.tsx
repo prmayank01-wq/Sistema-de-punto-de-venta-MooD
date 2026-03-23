@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useStore } from './store/useStore';
 import Login from './pages/Login';
 import AdminLayout from './pages/AdminLayout';
@@ -23,22 +23,26 @@ export default function App() {
   const setBackgroundUrl = useStore((state) => state.setBackgroundUrl);
 
   useEffect(() => {
-    document.documentElement.style.setProperty('--color-primary', customTheme.primary);
-    document.documentElement.style.setProperty('--color-secondary', customTheme.secondary);
-    document.documentElement.style.setProperty('--color-bg1', customTheme.bg1);
-    document.documentElement.style.setProperty('--color-bg2', customTheme.bg2);
-    document.documentElement.style.setProperty('--color-text', customTheme.text);
-    document.documentElement.style.setProperty('--color-text-secondary', customTheme.textSecondary || '#a1a1aa');
+    if (customTheme) {
+      document.documentElement.style.setProperty('--color-primary', customTheme.primary || '#ef4444');
+      document.documentElement.style.setProperty('--color-secondary', customTheme.secondary || '#3b82f6');
+      document.documentElement.style.setProperty('--color-bg1', customTheme.bg1 || '#18181b');
+      document.documentElement.style.setProperty('--color-bg2', customTheme.bg2 || '#09090b');
+      document.documentElement.style.setProperty('--color-text', customTheme.text || '#ffffff');
+      document.documentElement.style.setProperty('--color-text-secondary', customTheme.textSecondary || '#a1a1aa');
+    }
   }, [customTheme]);
 
   useEffect(() => {
     fetch('/api/settings')
       .then(res => res.json())
       .then(data => {
-        const logoSetting = data.find((s: any) => s.key === 'logoUrl');
-        const bgSetting = data.find((s: any) => s.key === 'backgroundUrl');
-        if (logoSetting) setLogoUrl(logoSetting.value);
-        if (bgSetting) setBackgroundUrl(bgSetting.value);
+        if (Array.isArray(data)) {
+          const logoSetting = data.find((s: any) => s.key === 'logoUrl');
+          const bgSetting = data.find((s: any) => s.key === 'backgroundUrl');
+          if (logoSetting) setLogoUrl(logoSetting.value);
+          if (bgSetting) setBackgroundUrl(bgSetting.value);
+        }
       })
       .catch(err => console.error('Error loading settings:', err));
   }, [setLogoUrl, setBackgroundUrl]);
@@ -64,6 +68,7 @@ export default function App() {
         </Route>
 
         <Route path="/pedidos" element={<Pedidos />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );

@@ -12,7 +12,7 @@ export default function AdminLayout() {
   return (
     <div className="flex h-screen bg-black text-white overflow-hidden">
       <Sidebar />
-      <main className="flex-1 overflow-y-auto bg-theme-2 p-8">
+      <main className="flex-1 overflow-y-auto bg-theme-2 p-4 md:p-6">
         <Outlet />
       </main>
     </div>

@@ -51,7 +51,9 @@ export default function Productos() {
     try {
       const res = await fetch("/api/products");
       const data = await res.json();
-      setProductos(data);
+      if (Array.isArray(data)) {
+        setProductos(data);
+      }
     } catch (err) {
       console.error("Error fetching products:", err);
     }
@@ -61,7 +63,9 @@ export default function Productos() {
     try {
       const res = await fetch("/api/inventory");
       const data = await res.json();
-      setInsumos(data);
+      if (Array.isArray(data)) {
+        setInsumos(data);
+      }
     } catch (err) {
       console.error("Error fetching inventory:", err);
     }
@@ -211,7 +215,7 @@ export default function Productos() {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold tracking-tight">Productos</h1>
       </div>

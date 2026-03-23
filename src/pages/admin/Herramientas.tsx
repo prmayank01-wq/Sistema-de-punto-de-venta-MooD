@@ -27,7 +27,11 @@ export default function Herramientas() {
     if (showChat) {
       fetch('/api/shifts')
         .then(res => res.json())
-        .then(data => setShifts(data))
+        .then(data => {
+          if (Array.isArray(data)) {
+            setShifts(data);
+          }
+        })
         .catch(err => console.error('Error fetching shifts:', err));
     } else {
       setSelectedShiftId(null);
@@ -41,9 +45,11 @@ export default function Herramientas() {
       const res = await fetch(`/api/shifts/${shiftId}/chats`);
       if (res.ok) {
         const data = await res.json();
-        setShiftChats(data);
-        setSelectedShiftId(shiftId);
-        setSelectedTableId(null);
+        if (Array.isArray(data)) {
+          setShiftChats(data);
+          setSelectedShiftId(shiftId);
+          setSelectedTableId(null);
+        }
       }
     } catch (err) {
       console.error('Error fetching shift chats:', err);
@@ -446,7 +452,7 @@ export default function Herramientas() {
   };
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-4 max-w-4xl">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold tracking-tight">Herramientas</h1>
         <button 
@@ -778,7 +784,7 @@ export default function Herramientas() {
           </div>
         </div>
 
-        <div className="bg-theme-1 p-6 rounded-xl border border-zinc-800 space-y-6 md:col-span-2">
+        <div className="bg-theme-1 p-6 rounded-xl border border-zinc-800 space-y-4 md:col-span-2">
           <h2 className="text-xl font-bold border-b border-zinc-800 pb-3">Personalización de Marca</h2>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -808,7 +814,7 @@ export default function Herramientas() {
           </div>
         </div>
 
-        <div className="bg-theme-1 p-6 rounded-xl border border-red-900/50 space-y-6 md:col-span-2">
+        <div className="bg-theme-1 p-6 rounded-xl border border-red-900/50 space-y-4 md:col-span-2">
           <h2 className="text-xl font-bold border-b border-zinc-800 pb-3 text-primary flex items-center gap-2">
             <AlertTriangle size={20} />
             Zona de Peligro

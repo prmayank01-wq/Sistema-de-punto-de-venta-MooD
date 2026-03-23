@@ -20,7 +20,9 @@ export default function Usuarios() {
     try {
       const res = await fetch('/api/users');
       const data = await res.json();
-      setUsuarios(data);
+      if (Array.isArray(data)) {
+        setUsuarios(data);
+      }
     } catch (err) {
       console.error('Error fetching users:', err);
     }
@@ -116,7 +118,7 @@ export default function Usuarios() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold tracking-tight">Usuarios</h1>
       </div>
@@ -186,6 +188,7 @@ export default function Usuarios() {
                             type="text" 
                             value={editUser.username}
                             onChange={e => setEditUser({...editUser, username: e.target.value})}
+                            onKeyDown={(e) => e.key === 'Enter' && saveEdit()}
                             className="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-white focus:outline-none focus:border-primary"
                             placeholder="Usuario"
                           />
@@ -193,6 +196,7 @@ export default function Usuarios() {
                             type="password" 
                             value={editUser.password}
                             onChange={e => setEditUser({...editUser, password: e.target.value})}
+                            onKeyDown={(e) => e.key === 'Enter' && saveEdit()}
                             className="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-white focus:outline-none focus:border-primary"
                             placeholder="Nueva Contraseña (opcional)"
                           />
@@ -202,6 +206,7 @@ export default function Usuarios() {
                         <select 
                           value={editUser.role}
                           onChange={e => setEditUser({...editUser, role: e.target.value})}
+                          onKeyDown={(e) => e.key === 'Enter' && saveEdit()}
                           className="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-white focus:outline-none focus:border-primary"
                         >
                           <option value="CAJERO">CAJERO</option>

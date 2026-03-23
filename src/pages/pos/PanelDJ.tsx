@@ -48,11 +48,17 @@ export default function PanelDJ() {
     
     // Fetch initial data
     fetch('/api/tables').then(res => res.json()).then(data => {
-      setMesas(data);
-      if (data.length > 0) setActiveMesa(data[0].id);
+      if (Array.isArray(data)) {
+        setMesas(data);
+        if (data.length > 0) setActiveMesa(data[0].id);
+      }
     });
-    fetch('/api/chats/active').then(res => res.json()).then(setChats);
-    fetch('/api/playlist/active').then(res => res.json()).then(setPlaylist);
+    fetch('/api/chats/active').then(res => res.json()).then(data => {
+      if (Array.isArray(data)) setChats(data);
+    });
+    fetch('/api/playlist/active').then(res => res.json()).then(data => {
+      if (Array.isArray(data)) setPlaylist(data);
+    });
     
     // Connect to Socket.IO
     const newSocket = io();
@@ -64,15 +70,17 @@ export default function PanelDJ() {
 
     newSocket.on('tables_updated', () => {
       fetch('/api/tables').then(res => res.json()).then(data => {
-        setMesas(data);
-        // If active mesa is no longer in the list, switch to the first one
-        if (data.length > 0) {
-          setActiveMesa(current => {
-            if (!data.find((m: any) => m.id === current)) {
-              return data[0].id;
-            }
-            return current;
-          });
+        if (Array.isArray(data)) {
+          setMesas(data);
+          // If active mesa is no longer in the list, switch to the first one
+          if (data.length > 0) {
+            setActiveMesa(current => {
+              if (!data.find((m: any) => m.id === current)) {
+                return data[0].id;
+              }
+              return current;
+            });
+          }
         }
       });
     });
@@ -194,7 +202,7 @@ export default function PanelDJ() {
             <div className="p-4 border-b border-zinc-800 bg-theme-1 flex justify-between items-center shrink-0">
               <h3 className="font-bold">{activeMesaName}</h3>
             </div>
-            <div className="flex-1 p-6 overflow-y-auto space-y-4">
+            <div className="flex-1 p-4 overflow-y-auto space-y-4">
               {activeMesaChats.map((msg, idx) => {
                 let content = <p className="text-sm">{msg.message}</p>;
                 try {

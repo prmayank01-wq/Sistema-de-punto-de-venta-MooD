@@ -64,6 +64,7 @@ export function PromptModal({ isOpen, title, message, defaultValue = '', onConfi
           type="text"
           value={value}
           onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && onConfirm(value)}
           className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-primary mb-6"
           autoFocus
         />

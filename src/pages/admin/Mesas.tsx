@@ -35,7 +35,9 @@ export default function Mesas() {
     try {
       const res = await fetch('/api/tables');
       const data = await res.json();
-      setMesas(data);
+      if (Array.isArray(data)) {
+        setMesas(data);
+      }
     } catch (err) {
       console.error('Error fetching tables:', err);
     }
@@ -294,9 +296,9 @@ export default function Mesas() {
   }, [draggingId, dragOffset]);
 
   return (
-    <div className="space-y-6 h-full flex flex-col">
+    <div className="space-y-4 h-full flex flex-col">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold tracking-tight">Mesas (Planta)</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Mesas (Planta)</h1>
         <div className="flex gap-3">
           <button onClick={handleGenerateLinksClick} className="bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2 text-sm font-medium">
             <QrCode size={16} />
@@ -309,13 +311,14 @@ export default function Mesas() {
         </div>
       </div>
 
-      <div className="bg-theme-1 p-6 rounded-xl border border-zinc-800 flex gap-4 items-end">
+      <div className="bg-theme-1 p-4 rounded-xl border border-zinc-800 flex gap-4 items-end">
         <div>
           <label className="block text-sm font-medium text-zinc-400 mb-1">Nombre Mesa</label>
           <input 
             type="text" 
             value={nombreMesa}
             onChange={(e) => setNombreMesa(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleCrear()}
             className="w-48 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-primary" 
             placeholder="Ej: Mesa 03" 
           />

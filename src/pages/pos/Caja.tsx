@@ -13,6 +13,7 @@ export default function Caja() {
   const [showPendingPrompt, setShowPendingPrompt] = useState(false);
   const [pendingJustification, setPendingJustification] = useState('');
   const [showMixtoPrompt, setShowMixtoPrompt] = useState(false);
+  const [showMixtoEditPrompt, setShowMixtoEditPrompt] = useState(false);
   const [mixtoEfectivo, setMixtoEfectivo] = useState('');
   const [activeMixtoInput, setActiveMixtoInput] = useState<'EFECTIVO' | 'QR'>('EFECTIVO');
   const [mixtoQr, setMixtoQr] = useState('');
@@ -39,7 +40,7 @@ export default function Caja() {
       const user = userStr ? JSON.parse(userStr) : { id: 1 };
       const res = await fetch(`/api/sales/current-shift/inventory?user_id=${user.id}`);
       const data = await res.json();
-      setInventoryUsed(data);
+      if (Array.isArray(data)) setInventoryUsed(data);
     } catch (err) {
       console.error('Error fetching inventory used:', err);
     }
@@ -112,7 +113,7 @@ export default function Caja() {
       const user = userStr ? JSON.parse(userStr) : { id: 1 };
       const res = await fetch(`/api/sales/current-shift?user_id=${user.id}`);
       const data = await res.json();
-      setRecentSales(data);
+      if (Array.isArray(data)) setRecentSales(data);
     } catch (err) {
       console.error('Error fetching recent sales:', err);
     }
@@ -200,7 +201,7 @@ export default function Caja() {
     try {
       const res = await fetch('/api/products');
       const data = await res.json();
-      setProductos(data);
+      if (Array.isArray(data)) setProductos(data);
     } catch (err) {
       console.error('Error fetching products:', err);
     }
@@ -223,7 +224,7 @@ export default function Caja() {
     <div className="flex h-full">
       {/* Left side - Products */}
       <div className="flex-1 flex flex-col border-r border-zinc-800">
-        <div className="p-4 bg-theme-1 border-b border-zinc-800 flex flex-col md:flex-row gap-4">
+        <div className="p-3 bg-theme-1 border-b border-zinc-800 flex flex-row items-center gap-4 overflow-x-auto scrollbar-hide">
           <div className="flex items-center gap-2 bg-zinc-800 px-3 rounded-lg border border-zinc-700 w-[250px] shrink-0 h-10">
             <Search size={18} className="text-zinc-400" />
             <input 
@@ -234,12 +235,12 @@ export default function Caja() {
               className="bg-transparent border-none text-white focus:outline-none w-full text-sm h-full" 
             />
           </div>
-          <div className="flex flex-wrap gap-2 items-center">
+          <div className="flex flex-nowrap gap-2 items-center shrink-0">
             {['TODOS', 'BOTELLAS', 'JARRAS', 'SHOTS', 'PACKS', 'PROMOS', 'VASOS', 'OTROS'].map(f => (
               <button 
                 key={f} 
                 onClick={() => setFilterType(f)}
-                className={`px-4 h-10 rounded-lg text-sm font-bold transition-colors ${filterType === f ? 'bg-primary text-white' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 border border-zinc-700'}`}
+                className={`px-4 h-10 rounded-lg text-sm font-bold transition-colors whitespace-nowrap ${filterType === f ? 'bg-primary text-white' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 border border-zinc-700'}`}
               >
                 {f}
               </button>
@@ -252,7 +253,7 @@ export default function Caja() {
             <div 
               key={p.id} 
               onClick={() => addToTicket(p)}
-              className="bg-theme-1 border border-zinc-800 rounded-xl overflow-hidden cursor-pointer hover:border-primary hover:scale-110 transition-all group flex flex-col w-[140px] h-[200px]"
+              className="bg-theme-1 border border-zinc-800 rounded-xl overflow-hidden cursor-pointer hover:border-primary hover:scale-110 transition-all group flex flex-col w-[140px] h-[180px]"
             >
               <div className="h-24 bg-zinc-800 flex items-center justify-center overflow-hidden shrink-0">
                 {p.imagen_path ? (
@@ -261,15 +262,15 @@ export default function Caja() {
                   <span className="text-zinc-600 text-xs">IMG</span>
                 )}
               </div>
-              <div className="p-3 flex flex-col justify-between flex-1">
+              <div className="p-2 flex flex-col justify-between flex-1">
                 <div className="font-bold text-sm text-center group-hover:text-primary transition-colors leading-tight line-clamp-3">{p.nombre}</div>
-                <div className="text-emerald-400 font-mono text-2xl font-bold text-right mt-2">{Math.round(p.precio)} Bs</div>
+                <div className="text-emerald-400 font-mono text-xl font-bold text-right mt-1">{Math.round(p.precio)} Bs</div>
               </div>
             </div>
           ))}
         </div>
 
-        <div className="h-[350px] bg-theme-1 border-t border-zinc-800 flex flex-col">
+        <div className="h-[200px] bg-theme-1 border-t border-zinc-800 flex flex-col shrink-0">
           <div className="p-2 border-b border-zinc-800 bg-zinc-900/50">
             <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Ventas Recientes</h3>
           </div>
@@ -285,11 +286,10 @@ export default function Caja() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-800/30">
-                {recentSales.slice(0, 15).map((sale, idx) => (
+                {recentSales.slice(0, 4).map((sale, idx) => (
                   <tr key={idx} className={`hover:bg-zinc-800/30 ${sale.is_deleted ? 'bg-red-900/20 text-red-400' : modifiedSales.includes(sale.id) ? 'bg-blue-900/20 text-blue-200' : ''}`}>
                     <td className={`py-2 ${sale.is_deleted ? 'text-red-400/70' : 'text-zinc-400'}`}>
-                      <div>{new Date(sale.hora_venta).toLocaleDateString()}</div>
-                      <div>{new Date(sale.hora_venta).toLocaleTimeString()}</div>
+                      {new Date(sale.hora_venta).toLocaleDateString()} {new Date(sale.hora_venta).toLocaleTimeString()}
                     </td>
                     <td className={`py-2 font-medium ${sale.is_deleted ? 'line-through' : ''}`}>
                       {sale.is_deleted && <span className="text-xs font-bold mr-2 bg-red-950 px-1 rounded">ELIMINADO</span>}
@@ -352,31 +352,31 @@ export default function Caja() {
       </div>
 
       {/* Right side - Ticket */}
-      <div className="w-96 bg-theme-1 flex flex-col">
-        <div className="p-4 border-b border-zinc-800 flex justify-between items-center">
+      <div className="w-80 bg-theme-1 flex flex-col">
+        <div className="p-3 border-b border-zinc-800 flex justify-between items-center">
           <h2 className="font-bold text-lg">TICKET</h2>
           <button 
             onClick={() => setShowPending(true)}
-            className="text-white hover:bg-orange-600 transition-colors bg-orange-500 px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-bold"
+            className="text-white hover:bg-orange-600 transition-colors bg-orange-500 px-3 py-1.5 rounded-lg flex items-center gap-2 text-sm font-bold"
           >
             <Clock size={16} /> PENDIENTES {pendingTickets.length > 0 && `(${pendingTickets.length})`}
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-2">
+        <div className="flex-1 overflow-y-auto p-3 space-y-2">
           {ticket.map(item => (
             <div key={item.id} className="flex items-center justify-between bg-theme-2 p-3 rounded-lg border border-zinc-800">
               <div className="flex-1">
-                <div className="font-bold text-lg">{item.nombre}</div>
-                <div className="text-zinc-400 text-lg font-mono">{Math.round(item.precio)} Bs x <span className="text-emerald-400 text-3xl font-bold">{item.cant}</span></div>
+                <div className="font-bold text-base">{item.nombre}</div>
+                <div className="text-zinc-400 text-sm font-mono">{Math.round(item.precio)} Bs x <span className="text-emerald-400 text-xl font-bold">{item.cant}</span></div>
               </div>
-              <div className="flex items-center gap-4">
-                <div className="font-bold font-mono text-emerald-400 text-3xl">{Math.round(item.precio * item.cant)} Bs</div>
+              <div className="flex items-center gap-2">
+                <div className="font-bold font-mono text-emerald-400 text-xl">{Math.round(item.precio * item.cant)} Bs</div>
                 <button 
                   onClick={() => removeFromTicket(item.id)}
-                  className="bg-zinc-800 hover:bg-zinc-700 text-white p-3 rounded-md transition-colors"
+                  className="bg-zinc-800 hover:bg-zinc-700 text-white p-2 rounded-md transition-colors"
                 >
-                  <Minus size={20} />
+                  <Minus size={16} />
                 </button>
               </div>
             </div>
@@ -386,7 +386,7 @@ export default function Caja() {
         <div className="p-4 bg-black border-t border-zinc-800">
           <div className="flex justify-between items-end mb-4">
             <span className="text-zinc-400 font-bold">TOTAL</span>
-            <span className="text-5xl font-bold font-mono text-white">{Math.round(total)} Bs</span>
+            <span className="text-4xl font-bold font-mono text-white">{Math.round(total)} Bs</span>
           </div>
           
           <div className="grid grid-cols-2 gap-2 mb-2">
@@ -746,8 +746,133 @@ export default function Caja() {
           </div>
         </div>
       )}
+      {/* Mixto Edit Modal */}
+      {showMixtoEditPrompt && saleToEdit && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-theme-1 rounded-xl border border-zinc-800 w-full max-w-md p-6">
+            <h2 className="text-xl font-bold mb-6 text-center">Corregir a Pago Mixto</h2>
+            
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="block text-sm text-zinc-400 mb-1">Total a cobrar</label>
+                <div className="text-3xl font-bold font-mono text-white">{Math.round(saleToEdit.total)} Bs</div>
+              </div>
+              
+              <div 
+                onClick={() => setActiveMixtoInput('EFECTIVO')}
+                className={`p-3 rounded-lg border cursor-pointer transition-colors ${activeMixtoInput === 'EFECTIVO' ? 'border-primary bg-primary/10' : 'border-zinc-700 bg-zinc-900'}`}
+              >
+                <label className="block text-sm text-zinc-400 mb-1">Efectivo</label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    readOnly
+                    value={mixtoEfectivo}
+                    className="w-full bg-transparent border-none pr-12 pl-4 py-1 text-2xl font-mono text-emerald-400 focus:outline-none pointer-events-none text-right"
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xl text-zinc-400">Bs</span>
+                </div>
+              </div>
+              
+              <div 
+                onClick={() => setActiveMixtoInput('QR')}
+                className={`p-3 rounded-lg border cursor-pointer transition-colors ${activeMixtoInput === 'QR' ? 'border-primary bg-primary/10' : 'border-zinc-700 bg-zinc-900'}`}
+              >
+                <label className="block text-sm text-zinc-400 mb-1">QR</label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    readOnly
+                    value={mixtoQr}
+                    className="w-full bg-transparent border-none pr-12 pl-4 py-1 text-2xl font-mono text-blue-400 focus:outline-none pointer-events-none text-right"
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xl text-zinc-400">Bs</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Numeric Keypad */}
+            <div className="grid grid-cols-3 gap-2 mb-6">
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9, '.', 0, '⌫'].map((key) => (
+                <button
+                  key={key}
+                  onClick={() => {
+                    const totalAmount = saleToEdit.total;
+                    if (activeMixtoInput === 'EFECTIVO') {
+                      let newEfectivo = mixtoEfectivo;
+                      if (key === '⌫') {
+                        newEfectivo = newEfectivo.slice(0, -1);
+                      } else if (key === '.') {
+                        if (!newEfectivo.includes('.')) newEfectivo += key;
+                      } else {
+                        newEfectivo += key;
+                      }
+                      setMixtoEfectivo(newEfectivo);
+                      
+                      const val = parseFloat(newEfectivo) || 0;
+                      if (val <= totalAmount) {
+                        setMixtoQr((totalAmount - val).toFixed(2));
+                      } else {
+                        setMixtoQr('0.00');
+                      }
+                    } else {
+                      let newQr = mixtoQr;
+                      if (key === '⌫') {
+                        newQr = newQr.slice(0, -1);
+                      } else if (key === '.') {
+                        if (!newQr.includes('.')) newQr += key;
+                      } else {
+                        newQr += key;
+                      }
+                      setMixtoQr(newQr);
+                      
+                      const val = parseFloat(newQr) || 0;
+                      if (val <= totalAmount) {
+                        setMixtoEfectivo((totalAmount - val).toFixed(2));
+                      } else {
+                        setMixtoEfectivo('0.00');
+                      }
+                    }
+                  }}
+                  className="bg-zinc-800 hover:bg-zinc-700 text-white text-xl font-bold py-4 rounded-lg transition-colors"
+                >
+                  {key}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex gap-3">
+              <button 
+                onClick={() => {
+                  setShowMixtoEditPrompt(false);
+                  setMixtoEfectivo('');
+                  setMixtoQr('');
+                }}
+                className="flex-1 py-3 rounded-lg font-bold text-zinc-400 bg-zinc-800 hover:bg-zinc-700 transition-colors"
+              >
+                CANCELAR
+              </button>
+              <button 
+                onClick={() => {
+                  const efe = parseFloat(mixtoEfectivo) || 0;
+                  const qr = parseFloat(mixtoQr) || 0;
+                  updateSaleMethod(saleToEdit.id, 'MIXTO', efe, qr);
+                  setShowMixtoEditPrompt(false);
+                  setMixtoEfectivo('');
+                  setMixtoQr('');
+                }}
+                disabled={!mixtoEfectivo || !mixtoQr || Math.abs((parseFloat(mixtoEfectivo) || 0) + (parseFloat(mixtoQr) || 0) - saleToEdit.total) > 0.01}
+                className="flex-1 bg-primary hover:bg-primary/80 disabled:opacity-50 disabled:cursor-not-allowed text-white py-3 rounded-lg font-bold transition-colors"
+              >
+                CONFIRMAR
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Sale Edit Modal */}
-      {saleToEdit && (
+      {saleToEdit && !showMixtoEditPrompt && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
           <div className="bg-theme-1 rounded-xl border border-zinc-800 w-full max-w-md p-6">
             <h2 className="text-xl font-bold mb-4">Corregir Venta</h2>
@@ -818,13 +943,14 @@ export default function Caja() {
                   </button>
                   <button 
                     onClick={() => {
-                      const amount = Math.round(saleToEdit.total);
-                      const half = Math.floor(amount / 2);
-                      updateSaleMethod(saleToEdit.id, 'MIXTO', half, amount - half);
+                      setMixtoEfectivo('');
+                      setMixtoQr('');
+                      setActiveMixtoInput('EFECTIVO');
+                      setShowMixtoEditPrompt(true);
                     }} 
                     className="w-full py-3 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg font-bold text-white transition-colors flex items-center justify-center gap-2"
                   >
-                    <CreditCard size={18} /> Cambiar a MIXTO (50/50)
+                    <CreditCard size={18} /> Cambiar a MIXTO
                   </button>
                   
                   <div className="pt-4 border-t border-zinc-800">

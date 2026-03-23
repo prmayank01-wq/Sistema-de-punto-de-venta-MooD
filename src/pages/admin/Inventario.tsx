@@ -23,7 +23,9 @@ export default function Inventario() {
     try {
       const res = await fetch('/api/inventory');
       const data = await res.json();
-      setInsumos(data);
+      if (Array.isArray(data)) {
+        setInsumos(data);
+      }
     } catch (err) {
       console.error('Error fetching inventory:', err);
     }
@@ -191,7 +193,7 @@ export default function Inventario() {
   const filteredInsumos = insumos.filter(i => i.nombre.toLowerCase().includes(searchTerm.toLowerCase()));
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold tracking-tight">Inventario</h1>
         <button 
@@ -308,6 +310,7 @@ export default function Inventario() {
                           type="text" 
                           value={editInsumo.nombre}
                           onChange={e => setEditInsumo({...editInsumo, nombre: e.target.value})}
+                          onKeyDown={(e) => e.key === 'Enter' && saveEdit()}
                           className="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-white focus:outline-none focus:border-primary"
                         />
                       </td>
@@ -316,6 +319,7 @@ export default function Inventario() {
                           type="number" 
                           value={editInsumo.contenido}
                           onChange={e => setEditInsumo({...editInsumo, contenido: e.target.value})}
+                          onKeyDown={(e) => e.key === 'Enter' && saveEdit()}
                           className="w-20 bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-white focus:outline-none focus:border-primary"
                         />
                       </td>
@@ -324,6 +328,7 @@ export default function Inventario() {
                           type="number" 
                           value={editInsumo.peso_envase}
                           onChange={e => setEditInsumo({...editInsumo, peso_envase: e.target.value})}
+                          onKeyDown={(e) => e.key === 'Enter' && saveEdit()}
                           className="w-20 bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-white focus:outline-none focus:border-primary"
                         />
                       </td>
@@ -331,6 +336,7 @@ export default function Inventario() {
                         <select 
                           value={editInsumo.modo}
                           onChange={e => setEditInsumo({...editInsumo, modo: e.target.value})}
+                          onKeyDown={(e) => e.key === 'Enter' && saveEdit()}
                           className="w-24 bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-white focus:outline-none focus:border-primary"
                         >
                           <option value="GRAMOS">GRAMOS</option>
@@ -342,6 +348,7 @@ export default function Inventario() {
                           type="number" 
                           value={editInsumo.unidades}
                           onChange={e => setEditInsumo({...editInsumo, unidades: Number(e.target.value)})}
+                          onKeyDown={(e) => e.key === 'Enter' && saveEdit()}
                           className="w-16 bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-white focus:outline-none focus:border-primary"
                           title="Unidades"
                         />
@@ -350,6 +357,7 @@ export default function Inventario() {
                             type="number" 
                             value={editInsumo.gramos_abiertos}
                             onChange={e => setEditInsumo({...editInsumo, gramos_abiertos: Number(e.target.value)})}
+                            onKeyDown={(e) => e.key === 'Enter' && saveEdit()}
                             className="w-16 bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-white focus:outline-none focus:border-primary"
                             title="Gramos Abiertos"
                           />

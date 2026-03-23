@@ -9,6 +9,7 @@ export default function Pedidos() {
   const tableToken = searchParams.get('t');
   const tableId = searchParams.get('table');
   const [tableName, setTableName] = useState('Mesa Desconocida');
+  const [tableColor, setTableColor] = useState('#ffffff');
   const [activeTab, setActiveTab] = useState('HOME');
   const [socket, setSocket] = useState<Socket | null>(null);
   const [messages, setMessages] = useState<{from: string, text: string}[]>([]);
@@ -19,6 +20,22 @@ export default function Pedidos() {
   const logoUrl = useStore(state => state.logoUrl);
   const [menu, setMenu] = useState<any[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!logoUrl) {
+      fetch('/api/settings')
+        .then(res => res.json())
+        .then(data => {
+          if (Array.isArray(data)) {
+            const logoSetting = data.find((s: any) => s.key === 'logoUrl');
+            if (logoSetting && logoSetting.value) {
+              useStore.getState().setLogoUrl(logoSetting.value);
+            }
+          }
+        })
+        .catch(err => console.error('Error loading settings:', err));
+    }
+  }, [logoUrl]);
 
   useEffect(() => {
     if (tableToken) {
@@ -33,18 +50,36 @@ export default function Pedidos() {
     fetch('/api/products')
       .then(res => res.json())
       .then(data => {
-        setMenu(data);
-        const cats = Array.from(new Set(data.map((p: any) => p.tipo))).filter(Boolean);
-        setCategories(cats as string[]);
-      });
+        if (Array.isArray(data)) {
+          setMenu(data);
+          const cats = Array.from(new Set(data.map((p: any) => p.tipo))).filter(Boolean);
+          setCategories(cats as string[]);
+        }
+      })
+      .catch(err => console.error('Error fetching products:', err));
 
     if (tableId) {
       fetch('/api/chats/active')
         .then(res => res.json())
         .then(data => {
-          const tableChats = data.filter((c: any) => c.table_id == tableId);
-          setMessages(tableChats.map((c: any) => ({ from: c.from_role, text: c.message })));
-        });
+          if (Array.isArray(data)) {
+            const tableChats = data.filter((c: any) => c.table_id == tableId);
+            setMessages(tableChats.map((c: any) => ({ from: c.from_role, text: c.message })));
+          }
+        })
+        .catch(err => console.error('Error fetching chats:', err));
+
+      fetch('/api/tables')
+        .then(res => res.json())
+        .then(data => {
+          if (Array.isArray(data)) {
+            const table = data.find((t: any) => t.id == tableId);
+            if (table) {
+              setTableColor(table.color);
+            }
+          }
+        })
+        .catch(err => console.error('Error fetching tables:', err));
     }
 
     // Connect to Socket.IO
@@ -83,7 +118,7 @@ export default function Pedidos() {
       const term = activeTab === 'KARAOKE' ? `${searchQuery} karaoke` : searchQuery;
       const res = await fetch(`/api/search-youtube?q=${encodeURIComponent(term)}`);
       const data = await res.json();
-      setSearchResults(data);
+      setSearchResults(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Error searching:', err);
     } finally {
@@ -135,10 +170,15 @@ export default function Pedidos() {
   return (
     <div className="flex flex-col h-screen bg-black text-zinc-100 font-sans overflow-hidden">
       {/* Header */}
-      <header className="bg-zinc-900 p-4 border-b border-zinc-800 flex justify-center items-center shrink-0">
+      <header className="bg-zinc-900 border-b border-zinc-800 flex justify-center items-center shrink-0">
         <div className="flex flex-row items-center gap-4">
-          <img src={logoUrl || "/assets/logo.png"} alt="Logo" className="w-16 h-16 object-contain" />
-          <h1 className="font-bold text-3xl tracking-wider">{tableName}</h1>
+          <img src={logoUrl || "/assets/logo.png"} alt="Logo" className="w-auto h-20 max-w-[200px] object-contain" />
+          <h1 
+            className="font-bold text-6xl tracking-wider m-0 drop-shadow-md"
+            style={{ textDecoration: 'underline', textDecorationColor: tableColor, textDecorationThickness: '6px', textUnderlineOffset: '8px' }}
+          >
+            {tableName}
+          </h1>
         </div>
       </header>
 

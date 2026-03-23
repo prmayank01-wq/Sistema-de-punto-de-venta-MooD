@@ -35,22 +35,22 @@ export default function Reportes() {
 
       if (reportsRes.ok) {
         const data = await reportsRes.json();
-        setReportes(data);
+        if (Array.isArray(data)) setReportes(data);
       }
       
       if (salesRes.ok) {
         const data = await salesRes.json();
-        setVentas(data);
+        if (Array.isArray(data)) setVentas(data);
       }
 
       if (topRes.ok) {
         const data = await topRes.json();
-        setTopProducts(data);
+        if (Array.isArray(data)) setTopProducts(data);
       }
 
       if (invRes.ok) {
         const data = await invRes.json();
-        setInventoryUsed(data);
+        if (Array.isArray(data)) setInventoryUsed(data);
       }
     } catch (err) {
       console.error('Error fetching data:', err);
@@ -75,8 +75,10 @@ export default function Reportes() {
           fetch(`/api/reports/inventory-used?shift_id=${id}`)
         ]);
         
-        const shiftSales = await salesRes.json();
-        const shiftInv = await invRes.json();
+        const rawSales = await salesRes.json();
+        const rawInv = await invRes.json();
+        const shiftSales = Array.isArray(rawSales) ? rawSales : [];
+        const shiftInv = Array.isArray(rawInv) ? rawInv : [];
         
         doc.setFontSize(20);
         doc.text(`Reporte de Turno #${reporte.id}`, 14, 22);
@@ -210,7 +212,7 @@ export default function Reportes() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold tracking-tight">Reportes</h1>
         <button 

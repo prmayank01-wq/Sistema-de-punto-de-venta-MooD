@@ -1,5 +1,31 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
+
+// Safe storage wrapper to handle iframe restrictions
+const safeStorage = {
+  getItem: (name: string): string | null => {
+    try {
+      return localStorage.getItem(name);
+    } catch (e) {
+      console.warn('localStorage is not available, using memory storage');
+      return null;
+    }
+  },
+  setItem: (name: string, value: string): void => {
+    try {
+      localStorage.setItem(name, value);
+    } catch (e) {
+      console.warn('localStorage is not available, cannot save state');
+    }
+  },
+  removeItem: (name: string): void => {
+    try {
+      localStorage.removeItem(name);
+    } catch (e) {
+      console.warn('localStorage is not available, cannot remove state');
+    }
+  },
+};
 
 interface User {
   id: number;
@@ -60,6 +86,7 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'pos-storage',
+      storage: createJSONStorage(() => safeStorage),
       partialize: (state) => ({ customTheme: state.customTheme, logoUrl: state.logoUrl, backgroundUrl: state.backgroundUrl }),
     }
   )
